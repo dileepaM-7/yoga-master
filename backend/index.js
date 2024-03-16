@@ -30,6 +30,17 @@ async function run() {
     const enrolledCollection = database.collection ("enrolled");
     const appliedCollection = database.collection ("applied");
 
+    //routs for users
+    app.post('/new-user', async (req, res) =>{
+      const newUser = req.body;
+      const result = await usersCollection.insertOne(newUser);
+      res.send(result);
+    });
+
+    app.get('/users', async (req, res) => {
+
+    });
+
     // to save the data to the database
     app.post('/new-class', async(req, res) => {
       try {
@@ -175,7 +186,157 @@ async function run() {
       });
     });
 
-    
+    // post payment info to database
+    // POST PAYMENT INFO 
+    app.post('/payment-info', verifyJWT, async (req, res) => {
+      const paymentInfo = req.body;
+      const classesId = paymentInfo.classesId;
+      const userEmail = paymentInfo.userEmail;
+      const singleClassId = req.query.classId;
+      let query;
+      // const query = { classId: { $in: classesId } };
+      if (singleClassId) {
+          query = { classId: singleClassId, userMail: userEmail };
+      } else {
+          query = { classId: { $in: classesId } };
+      }
+      const classesQuery = { _id: { $in: classesId.map(id => new ObjectId(id)) } }
+      const classes = await classesCollection.find(classesQuery).toArray();
+      const newEnrolledData = {
+          userEmail: userEmail,
+          classesId: classesId.map(id => new ObjectId(id)),
+          transactionId: paymentInfo.transactionId,
+      }
+      const updatedDoc = {
+          $set: {
+              totalEnrolled: classes.reduce((total, current) => total + current.totalEnrolled, 0) + 1 || 0,
+              availableSeats: classes.reduce((total, current) => total + current.availableSeats, 0) - 1 || 0,
+          }
+      }
+      // const updatedInstructor = await userCollection.find()
+      const updatedResult = await classesCollection.updateMany(classesQuery, updatedDoc, { upsert: true });
+      const enrolledResult = await enrolledCollection.insertOne(newEnrolledData);
+      const deletedResult = await cartCollection.deleteMany(query);
+      const paymentResult = await paymentCollection.insertOne(paymentInfo);
+      res.send({ paymentResult, deletedResult, enrolledResult, updatedResult });
+  });
+
+
+  app.get('/payment-history/:email', async (req, res) => {
+      const email = req.params.email;
+      const query = { userEmail: email };
+      const result = await paymentCollection.find(query).sort({ date: -1 }).toArray();
+      res.send(result);
+  });
+
+
+  app.get('/payment-history-length/:email', async (req, res) => {
+      const email = req.params.email;
+      const query = { userEmail: email };
+      const total = await paymentCollection.countDocuments(query);
+      res.send({ total });
+  });
+
+  // ! ENROLLED ROUTES
+
+  app.get('/popular_classes', async (req, res) => {
+    const result = await classesCollection.find().sort({ totalEnrolled: -1 }).limit(6).toArray();
+    res.send(result);
+  });
+
+
+  app.get('/popular-instructors', async (req, res) => {
+    const pipeline = [
+        {
+            $group: {
+                _id: "$instructorEmail",
+                totalEnrolled: { $sum: "$totalEnrolled" },
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "_id",
+                foreignField: "email",
+                as: "instructor"
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                instructor: {
+                    $arrayElemAt: ["$instructor", 0]
+                },
+                totalEnrolled: 1
+            }
+        },
+        {
+            $sort: {
+                totalEnrolled: -1
+            }
+        },
+        {
+            $limit: 6
+        }
+    ]
+    const result = await classesCollection.aggregate(pipeline).toArray();
+    res.send(result);
+  });
+
+  app.get('/enrolled-classes/:email', verifyJWT, async (req, res) => {
+    const email = req.params.email;
+    const query = { userEmail: email };
+    const pipeline = [
+        {
+            $match: query
+        },
+        {
+            $lookup: {
+                from: "classes",
+                localField: "classesId",
+                foreignField: "_id",
+                as: "classes"
+            }
+        },
+        {
+            $unwind: "$classes"
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "classes.instructorEmail",
+                foreignField: "email",
+                as: "instructor"
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                classes: 1,
+                instructor: {
+                    $arrayElemAt: ["$instructor", 0]
+                }
+            }
+        }
+
+    ]
+    const result = await enrolledCollection.aggregate(pipeline).toArray();
+    // const result = await enrolledCollection.find(query).toArray();
+    res.send(result);
+  });
+
+  // Applied route 
+  app.post('/as-instructor', async (req, res) => {
+    const data = req.body;
+    const result = await appliedCollection.insertOne(data);
+    res.send(result);
+  });
+
+  app.get('/applied-instructors/:email',   async (req, res) => {
+    const email = req.params.email;
+    const result = await appliedCollection.findOne({email});
+    res.send(result);
+  });
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
