@@ -1,25 +1,27 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client';
+// index.jsx
+import React from 'react';
+import ReactDOM from 'react-dom';
 import './index.css';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
+import { 
+  QueryClient, 
+  QueryClientProvider 
+} from '@tanstack/react-query';
+
 
 import 'react-toastify/dist/ReactToastify.css';
 import Aos from 'aos';
-import { QueryClient, QueryClientProvider, } from '@tanstack/react-query'
 
-const queryClient = new QueryClient()
+import { router } from './routes/router';
 
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <div>Hello, Developers!</div>}
-]);
+// Initialize react-query
+const queryClient = new QueryClient();
 
+// Initialize AOS
 Aos.init();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    
-)
+  <QueryClientProvider client={queryClient}>
+    <RouterProvider router={router}/>
+  </QueryClientProvider>,
+);
