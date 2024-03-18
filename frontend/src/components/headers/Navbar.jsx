@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom'
 
 const navLinks = [
     {name: 'Home', route: '/'},
@@ -6,6 +7,7 @@ const navLinks = [
     {name: 'Classes', route: '/classes'},
 ]
 const Navbar = () => {
+    const [navBg, setNavBg] = useState('bg-[#15151580');
   return (
     <nav>
         <div className='lg:w-[95%] mx-auto sm:px-6 lg:px-6'>
@@ -18,8 +20,23 @@ const Navbar = () => {
 
                 {/* Mobile navbar */}
                 {/* navigations links navbar */}
-                <div>
-                    
+                <div className='hidden md:block text-black dark:text-white'>
+                    <div className='flex'>
+                        <ul className='ml-10 flex items-center space-x-4 pr-4'>
+                            {navLinks.map((link) =>(
+                                <li key={link.route}>
+                                    <NavLink 
+                                    to={link.route} 
+                                    className={({ isActive }) => 
+                                    `font-bold ${isActive ? 'text-secondary' : `${navBg.includes('bg-transparent') ? 
+                                    'text-white' : 'text-black dark:text-white'}`} hover:text-secondary duration-300`
+                                }
+                                >
+                                    {link.name}</NavLink>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
